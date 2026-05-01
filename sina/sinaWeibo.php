@@ -185,7 +185,7 @@ class SaeTOAuthV2 {
 		} elseif ( $type === 'code' ) {
 			$params['grant_type'] = 'authorization_code';
 			$params['code'] = $keys['code'];
-			$params['redirect_uri'] = $keys['redirect_uri'];
+			$params['redirect_uri'] = WB_CALLBACK_URL;
 		} elseif ( $type === 'password' ) {
 			$params['grant_type'] = 'password';
 			$params['username'] = $keys['username'];
@@ -195,10 +195,16 @@ class SaeTOAuthV2 {
 		}
 		$response = $this->oAuthRequest($this->accessTokenURL(), 'POST', $params);
         $token = json_decode($response, true);
+        // JSON 解析失败时尝试 parse_str（兼容旧格式）
+        if ($token === null) {
+            $token = array();
+            parse_str($response, $token);
+        }
 		if ( is_array($token) && !isset($token['error']) ) {
 			$this->access_token = $token['access_token'];
 		} else {
-			throw new OAuthException("get access token failed." . $token['error']);
+			$error_msg = isset($token['error']) ? $token['error'] : 'invalid response';
+			throw new OAuthException("get access token failed." . $error_msg);
 		}
        
 		return $token;
@@ -346,7 +352,7 @@ class SaeTOAuthV2 {
 	function http($url, $method, $postfields = NULL, $headers = array()) {
 		$this->http_info = array();
         if(!function_exists('curl_init')) {
-            echo 'CURL 不可用';
+            throw new OAuthException('CURL 不可用，请安装 PHP curl 扩展');
         }
 		$ci = curl_init();
 		/* Curl settings */
@@ -435,7 +441,7 @@ class SaeTOAuthV2 {
 
 		foreach ($params as $parameter => $value) {
 
-			if( in_array($parameter, array('pic', 'image')) && $value{0} == '@' ) {
+			if( in_array($parameter, array('pic', 'image')) && $value[0] === '@' ) {
 				$url = ltrim( $value, '@' );
 				$content = file_get_contents( $url );
 				$array = explode( '?', basename( $url ) );
@@ -569,7 +575,7 @@ class SaeTClientV2
 	 */
 	function friends_timeline( $page = 1, $count = 50, $since_id = 0, $max_id = 0, $base_app = 0, $feature = 0 )
 	{
-		return $this->home_timeline( $since_id, $max_id, $count, $page, $base_app, $feature);
+		return $this->home_timeline( $page, $count, $since_id, $max_id, $base_app, $feature);
 	}
 
 	/**

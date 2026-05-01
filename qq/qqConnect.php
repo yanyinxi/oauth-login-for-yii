@@ -144,25 +144,30 @@ class qqConnectAuthV2 {
 			$params['grant_type'] = 'authorization_code';
 			$params['code'] = $keys['code'];
             $params['state'] = $keys['state'];
-			$params['redirect_uri'] = $keys['redirect_uri'];
+			$params['redirect_uri'] = QQ_CALLBACK_URL;
 		} elseif ( $type === 'password' ) {
 			$params['grant_type'] = 'password';
 			$params['username'] = $keys['username'];
 			$params['password'] = $keys['password'];
 		} else {
-			throw new CHttpException("wrong auth type");
+			throw new CException("wrong auth type");
 		}
       
 		$response = $this->oAuthRequest($this->accessTokenURL(), 'GET', $params);
-        $token = array();
-        parse_str($response,$token);
+        $token = json_decode($response, true);
+        // JSON 解析失败时尝试 parse_str（兼容旧格式）
+        if ($token === null) {
+            $token = array();
+            parse_str($response, $token);
+        }
         $getOpenID = $this->getOpenID($token);
-        $token['openid'] = $getOpenID['openid'];
+        $token['openid'] = isset($getOpenID['openid']) ? $getOpenID['openid'] : null;
         
 		if ( is_array($token) && !isset($token['error']) ) {
 			$this->access_token = $token['access_token'];
 		} else {
-			throw new CHttpException("get access token failed." . $token['error']);
+			$error_msg = isset($token['error']) ? $token['error'] : 'invalid response';
+			throw new CException("get access token failed. " . $error_msg);
 		}
        
 		return $token;
@@ -207,7 +212,7 @@ class qqConnectAuthV2 {
 	function http($url, $method, $postfields = NULL, $headers = array()) {
 		$this->http_info = array();
         if(!function_exists('curl_init')) {
-            echo 'CURL 不可用';
+            throw new CException('CURL 不可用，请安装 PHP curl 扩展');
         }
 		$ci = curl_init();
 		/* Curl settings */
@@ -298,7 +303,7 @@ class qqConnectAuthV2 {
 
 		foreach ($params as $parameter => $value) {
 
-			if( in_array($parameter, array('pic', 'image')) && $value{0} == '@' ) {
+			if( in_array($parameter, array('pic', 'image')) && $value[0] === '@' ) {
 				$url = ltrim( $value, '@' );
 				$content = file_get_contents( $url );
 				$array = explode( '?', basename( $url ) );
@@ -349,17 +354,22 @@ class qqConnectAuthV2 {
     function getOpenID($token)
     {
         $response = $this->oAuthRequest('oauth2.0/me', 'GET', $token);
+        // QQ 返回 JSONP 格式: callback({"client_id":"...","openid":"..."})
         $aTemp = array();
-        preg_match('/callback\(\s+(.*?)\s+\)/i', $response,$aTemp);
-        return  json_decode($aTemp[1],true);  
+        if (preg_match('/callback\(\s+(.*?)\s+\)/i', $response, $aTemp)) {
+            return json_decode($aTemp[1], true);
+        }
+        // 兼容直接返回 JSON 的情况
+        return json_decode($response, true);
     }
     
     function getUserInfo($params)
     {
-        $token['access_token'] = $params['access_token'];
-        $token['oauth_consumer_key'] = QQ_APPID;
-        $token['openid'] = $params['openid'];
-        return $this->get('user/get_user_info',$token);
+        $apiParams = array();
+        $apiParams['access_token'] = isset($params['access_token']) ? $params['access_token'] : null;
+        $apiParams['oauth_consumer_key'] = $this->client_id;
+        $apiParams['openid'] = isset($params['openid']) ? $params['openid'] : null;
+        return $this->get('user/get_user_info', $apiParams);
     }
     
 }

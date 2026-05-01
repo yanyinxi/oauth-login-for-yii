@@ -17,7 +17,7 @@ class oauthLogin extends CWidget
 	public $baseUrl			= null;
 	
 	public $cssFile = array(
-							'/css/oauth_login_yii.css',
+							'css/oauth_login_yii.css',
 			   		);
 	
 	public $data = array();
@@ -56,6 +56,13 @@ class oauthLogin extends CWidget
         $this->sinaLogin();
         $this->qqLogin();
 	}
+
+    /**
+     * @return string[]
+     */
+    public static function getSessionKeys() {
+        return array('sina_state', 'qq_state', 'sina_back_url', 'qq_back_url');
+    }
 	
 	
     /**
@@ -63,11 +70,14 @@ class oauthLogin extends CWidget
      */
     public function sinaLogin()
     {
-        $state = md5(rand(5, 10));
-        Yii::app()->session->add('sina_state',$state);
-        $weiboService = new SaeTOAuthV2(WB_AKEY,WB_SKEY);
-        $this->sina_code_url = $weiboService->getAuthorizeURL(WB_CALLBACK_URL,'code',$state);
-		Yii::app()->session->add('back_url',$this->back_url.'?state='.$state);
+        $state = function_exists('random_bytes')
+            ? bin2hex(random_bytes(16))
+            : md5(uniqid(rand(), true));
+        Yii::app()->session->add('sina_state', $state);
+        $weiboService = new SaeTOAuthV2(WB_AKEY, WB_SKEY);
+        $this->sina_code_url = $weiboService->getAuthorizeURL(WB_CALLBACK_URL, 'code', $state);
+        $backUrl = $this->back_url ?: Yii::app()->createAbsoluteUrl('/');
+		Yii::app()->session->add('sina_back_url', $backUrl . '?state=' . $state);
     }
     
     /**
@@ -75,11 +85,11 @@ class oauthLogin extends CWidget
      */
     public function qqLogin()
     {
-        $state = md5(rand(5, 10));
-        Yii::app()->session->add('qq_state',$state);
-        $qqService = new qqConnectAuthV2(QQ_APPID,QQ_APPKEY);
-        $this->qq_code_url = $qqService->getAuthorizeURL(QQ_CALLBACK_URL,'code',$state);
-        Yii::app()->session->add('back_url',$this->back_url.'?state='.$state);
+        $state = bin2hex(random_bytes(16));
+        Yii::app()->session->add('qq_state', $state);
+        $qqService = new qqConnectAuthV2(QQ_APPID, QQ_APPKEY);
+        $this->qq_code_url = $qqService->getAuthorizeURL(QQ_CALLBACK_URL, 'code', $state);
+        Yii::app()->session->add('qq_back_url', $this->back_url . '?state=' . $state);
     }
 
 
@@ -89,8 +99,7 @@ class oauthLogin extends CWidget
 	public function run()
 	{
 		parent::run();
-		$this->getViewFile($this->itemView);
-		$this->render($this->itemView,array('data',$this->data)); 	
+		$this->render($this->itemView, array('data' => $this->data));
 	}
 
 }	
