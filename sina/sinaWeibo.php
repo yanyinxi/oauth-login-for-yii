@@ -390,6 +390,9 @@ class SaeTOAuthV2 {
 		curl_setopt($ci, CURLINFO_HEADER_OUT, TRUE );
 
 		$response = curl_exec($ci);
+		if ($response === false) {
+			throw new OAuthException('curl_exec failed: ' . curl_error($ci));
+		}
 		$this->http_code = curl_getinfo($ci, CURLINFO_HTTP_CODE);
 		$this->http_info = array_merge($this->http_info, curl_getinfo($ci));
 		$this->url = $url;

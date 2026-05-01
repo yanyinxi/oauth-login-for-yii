@@ -85,11 +85,14 @@ class oauthLogin extends CWidget
      */
     public function qqLogin()
     {
-        $state = bin2hex(random_bytes(16));
+        $state = function_exists('random_bytes')
+            ? bin2hex(random_bytes(16))
+            : md5(uniqid(rand(), true));
         Yii::app()->session->add('qq_state', $state);
         $qqService = new qqConnectAuthV2(QQ_APPID, QQ_APPKEY);
         $this->qq_code_url = $qqService->getAuthorizeURL(QQ_CALLBACK_URL, 'code', $state);
-        Yii::app()->session->add('qq_back_url', $this->back_url . '?state=' . $state);
+        $backUrl = $this->back_url ?: Yii::app()->createAbsoluteUrl('/');
+        Yii::app()->session->add('qq_back_url', $backUrl . '?state=' . $state);
     }
 
 
